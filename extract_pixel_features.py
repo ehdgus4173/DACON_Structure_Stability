@@ -1,5 +1,5 @@
 """
-Prority 2: 픽셀 기반 피처 추출 및 병합 (`extract_pixel_features.py`)
+Priority 2: 픽셀 기반 피처 추출 및 병합 (`extract_pixel_features.py`)
 - front, top 이미지 픽셀 정보(밝기/대비, 엣지 밀도, HSV 분포) 추출
 - 추출한 데이터를 물리 피처(`physics_features.csv`, `video_motion_features.csv`)와 결합
 - 최종 `combined_features_v2.csv` 파일 출력
@@ -54,7 +54,7 @@ def extract_image_features(img_path: Path):
 def main():
     # 1. 모든 CSV 목록 로드 (train, dev, test)
     # TEST_CSV가 dataset에 없으므로 (sample_submission.csv 기준)
-    test_csv_path = PROJECT_ROOT.parent / "건축물진단" / "codebase" / "guideline" / "sample_submission.csv"
+    test_csv_path = PROJECT_ROOT.parent / "EDA" / "codebase" / "example" / "sample_submission.csv"
     
     dfs = {
         "train": pd.read_csv(TRAIN_CSV),
@@ -100,10 +100,9 @@ def main():
     print(f"Extraction complete! Row count: {len(pixel_df)}")
     
     # 3. 기존 분석본과 피처 조인 (combined_features_v2)
-    # 찬호님 물리 피처 경로 지정
-    old_base = PROJECT_ROOT.parent / "건축물진단" / "codebase" / "0324_제공데이터분석"
-    phys_csv = old_base / "03_physical_feature" / "outputs" / "physics_features.csv"
-    video_csv = old_base / "04_mp4_ana" / "outputs" / "video_motion_features.csv"
+    eda_base = PROJECT_ROOT.parent / "EDA" / "codebase" / "0324_제공데이터분석"
+    phys_csv = eda_base / "03_physical_feature" / "outputs" / "physics_features.csv"
+    video_csv = eda_base / "04_mp4_ana" / "outputs" / "video_motion_features.csv"
     
     combined_df = pixel_df.copy()
     
@@ -123,7 +122,7 @@ def main():
     output_dir.mkdir(exist_ok=True)
     out_path = output_dir / "combined_features_v2.csv"
     
-    combined_df.fillna(0, inplace=True) # 누락 피처(Test셋에 모션 결측 등) 처리
+    combined_df.fillna(0, inplace=True)  # 누락 피처(Test셋에 모션 결측 등) 처리
     combined_df.to_csv(out_path, index=False)
     
     print(f"✅ Final combined feature shape: {combined_df.shape}")

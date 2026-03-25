@@ -5,9 +5,16 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR
+from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR, PROJECT_ROOT
 from dataset import MultiViewDataset, get_transforms
 from models import MultiViewResNet
+
+PHYS_COLS_V2 = [
+    't_compactness', 'f_cx_offset', 't_left_mass_ratio',
+    't_cx_offset', 'f_mass_upper_ratio',
+    'FS_overturning', 'kern_ratio', 'effective_eccentricity',
+    'eccentric_combined', 'p_delta_eccentricity'
+]
 
 def main():
     parser = argparse.ArgumentParser()
@@ -21,12 +28,19 @@ def main():
     # Load test sample submission file
     test_df = pd.read_csv(SAMPLE_SUBMISSION_CSV)
     
+    # [NEW] Load physical features
+    feature_csv_path = PROJECT_ROOT / "features" / "combined_features_v3.csv"
+    feature_df = pd.read_csv(feature_csv_path)
+    
     _, test_transform = get_transforms()
-    test_dataset = MultiViewDataset(test_df, str(TEST_DIR), test_transform, is_test=True)
+    test_dataset = MultiViewDataset(
+        df=test_df, root_dir=str(TEST_DIR), transform=test_transform, 
+        is_test=True, feature_df=feature_df, feature_cols=PHYS_COLS_V2
+    )
     test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Load Model
-    model = MultiViewResNet().to(device)
+    # Load Model (Match feature branch dimension)
+    model = MultiViewResNet(num_classes=1, num_phys_features=len(PHYS_COLS_V2)).to(device)
     best_model_path = CHECKPOINT_DIR / "best_model.pth"
     if best_model_path.exists():
         model.load_state_dict(torch.load(best_model_path))
@@ -37,12 +51,13 @@ def main():
     model.eval()
     all_probs = []
 
-    print("Running inference on test set...")
+    print("Running inference with Physical Fusion on test set...")
     with torch.no_grad():
-        for views in tqdm(test_loader, desc="Inference"):
+        for views, feats in tqdm(test_loader, desc="Inference"):
             views = [v.to(device) for v in views]
+            feats = feats.to(device)
             
-            outputs = model(views).view(-1)
+            outputs = model(views, feats).view(-1)
             probs = torch.sigmoid(outputs)
             
             all_probs.extend(probs.cpu().numpy())

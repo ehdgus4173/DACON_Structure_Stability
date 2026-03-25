@@ -8,9 +8,16 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from config import TRAIN_CSV, DEV_CSV, TRAIN_DIR, DEV_DIR, CHECKPOINT_DIR
+from config import TRAIN_CSV, DEV_CSV, TRAIN_DIR, DEV_DIR, CHECKPOINT_DIR, PROJECT_ROOT
 from dataset import MultiViewDataset, get_transforms
 from models import MultiViewResNet
+
+PHYS_COLS_V2 = [
+    't_compactness', 'f_cx_offset', 't_left_mass_ratio',
+    't_cx_offset', 'f_mass_upper_ratio',
+    'FS_overturning', 'kern_ratio', 'effective_eccentricity',
+    'eccentric_combined', 'p_delta_eccentricity'
+]
 
 def seed_everything(seed=42):
     np.random.seed(seed)
@@ -22,12 +29,14 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
     model.train()
     train_loss = 0
     pbar = tqdm(loader, desc="Training", leave=False)
-    for views, labels in pbar:
+    for views, feats, labels in pbar:
         views = [v.to(device) for v in views]
+        feats = feats.to(device)
         labels = labels.to(device).float()
         
         optimizer.zero_grad()
-        outputs = model(views).view(-1)
+        # 모델의 forward_pass에 이미지 뷰어 배열과 피처 텐서 모두 전달
+        outputs = model(views, feats).view(-1)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
@@ -43,11 +52,12 @@ def validate(model, loader, criterion, device):
     all_labels = []
     
     with torch.no_grad():
-        for views, labels in tqdm(loader, desc="Validation", leave=False):
+        for views, feats, labels in tqdm(loader, desc="Validation", leave=False):
             views = [v.to(device) for v in views]
+            feats = feats.to(device)
             labels = labels.to(device).float()
             
-            outputs = model(views).view(-1)
+            outputs = model(views, feats).view(-1)
             probs = torch.sigmoid(outputs)
             
             all_probs.extend(probs.cpu().numpy())
@@ -65,6 +75,7 @@ def validate(model, loader, criterion, device):
 
 def main():
     parser = argparse.ArgumentParser()
+    # 제출 모델 튜닝 권장사항 (Epoch 20)
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-3)
@@ -79,16 +90,26 @@ def main():
     train_df = pd.read_csv(TRAIN_CSV)
     dev_df = pd.read_csv(DEV_CSV)
     
+    # [NEW] 물리 피처 데이터프레임 로드
+    feature_csv_path = PROJECT_ROOT / "features" / "combined_features_v3.csv"
+    feature_df = pd.read_csv(feature_csv_path)
+    
     train_transform, test_transform = get_transforms()
     
-    train_dataset = MultiViewDataset(train_df, str(TRAIN_DIR), train_transform, is_test=False)
-    val_dataset = MultiViewDataset(dev_df, str(DEV_DIR), test_transform, is_test=False)
+    train_dataset = MultiViewDataset(
+        df=train_df, root_dir=str(TRAIN_DIR), transform=train_transform, 
+        is_test=False, feature_df=feature_df, feature_cols=PHYS_COLS_V2
+    )
+    val_dataset = MultiViewDataset(
+        df=dev_df, root_dir=str(DEV_DIR), transform=test_transform, 
+        is_test=False, feature_df=feature_df, feature_cols=PHYS_COLS_V2
+    )
     
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Model & Optimization
-    model = MultiViewResNet().to(device)
+    # Model & Optimization (num_phys_features=10)
+    model = MultiViewResNet(num_classes=1, num_phys_features=len(PHYS_COLS_V2)).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
@@ -96,7 +117,7 @@ def main():
     best_model_path = CHECKPOINT_DIR / "best_model.pth"
 
     # Training Loop
-    print(f"Starting training for {args.epochs} epochs...")
+    print(f"Starting training for {args.epochs} epochs... with Physical Feature Fusion ({len(PHYS_COLS_V2)} dims)")
     for epoch in range(1, args.epochs + 1):
         avg_train_loss = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_logloss, val_acc = validate(model, val_loader, criterion, device)
