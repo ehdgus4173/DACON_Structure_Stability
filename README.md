@@ -33,7 +33,7 @@ DACON_Structure_Stability/
    원격 또는 로컬 환경에서 아래 패키지들을 설치해 주세요. (PyTorch, Pandas, OpenCV, Scikit-Learn 등)
 
    ```bash
-   pip install -r ../건축물진단/codebase/requirements.txt
+   pip install -r requirements.txt
    ```
 
 ## 🚀 How to Run
