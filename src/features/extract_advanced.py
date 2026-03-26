@@ -1,11 +1,14 @@
 """
-extract_physics_v2.py
+extract_advanced.py
 찬호의 구조공학 2세대 피처(FS_overturning, kern_ratio 등 9종)를
 combined_features_v2.csv에 병합하여 combined_features_v3.csv 생성.
 
 출처: 찬호 검증 스크립트 (add_physics_features 함수 기반)
-실행: python extract_physics_v2.py
+실행: run_pipeline.py Step 2에서 자동 호출 (직접 실행 금지)
 출력: DACON_Structure_Stability/features/combined_features_v3.csv
+
+입력 의존성:
+    features/combined_features_v2.csv (extract_base.py 출력)
 """
 
 import sys
@@ -14,22 +17,49 @@ import pandas as pd
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from config import PROJECT_ROOT, TRAIN_CSV, DEV_CSV, SAMPLE_SUBMISSION_CSV
+from config import PROJECT_ROOT, PHYS_COLS_V2
 
 
 # ================================================================
-# 2세대 구조공학 피처 추가 함수 (찬호 코드 그대로 이식)
+# 2세대 피처 메타 정보
+# ================================================================
+
+# 도메인 시프트 Safe 피처 (찬호 검증 기준)
+SAFE_ENGINEERED = [
+    'FS_overturning',           # Feature Importance 2위
+    'kern_ratio',               # Feature Importance 3위
+    'effective_eccentricity',   # Feature Importance 5위
+    'eccentric_combined',
+    'p_delta_eccentricity',
+]
+
+# 2세대 피처 전체 목록 (CSV에 저장되는 컬럼, PHYS_COLS_V2의 상위 집합)
+ENGINEERED_COLS = [
+    'FS_overturning',
+    'kern_ratio',
+    'top_heavy_index',
+    'p_delta_eccentricity',
+    'effective_eccentricity',
+    'eccentric_combined',
+    'base_stability_index',
+    'lateral_moment_approx',
+    'slenderness_approx',
+]
+
+
+# ================================================================
+# 2세대 구조공학 피처 추가 함수 (찬호 코드 이식)
 # ================================================================
 def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     """
-    기존 피처(physics_features.csv 기반)에 구조공학 이론 피처 9종 추가.
+    extract_base.py에서 추출한 1세대 피처를 입력받아 구조공학 이론 피처 9종 추가.
 
     입력 컬럼 필요:
         t_footprint_area, f_cx_offset, f_cy_offset,
         f_mass_upper_ratio, f_cy_norm, f_tilt_angle,
         f_height_ratio, f_width_ratio, t_left_mass_ratio
 
-    추가되는 컬럼:
+    추가되는 컬럼 (ENGINEERED_COLS):
         FS_overturning, kern_ratio, top_heavy_index,
         p_delta_eccentricity, effective_eccentricity,
         eccentric_combined, base_stability_index,
@@ -37,7 +67,7 @@ def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     """
     d = data.copy()
 
-    # 기초 폭 추정 (footprint_area의 제곱근으로 근사)
+    # 기초 폭 추정 (t_footprint_area의 제곱근으로 근사)
     B = np.sqrt(d['t_footprint_area'].clip(lower=1e-6))
 
     # 피처 1. 전도 안전율 (FS < 1.5 = Danger)
@@ -78,44 +108,6 @@ def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-ENGINEERED_COLS = [
-    'FS_overturning',
-    'kern_ratio',
-    'top_heavy_index',
-    'p_delta_eccentricity',
-    'effective_eccentricity',
-    'eccentric_combined',
-    'base_stability_index',
-    'lateral_moment_approx',
-    'slenderness_approx',
-]
-
-# 도메인 시프트 Safe 피처 (찬호 검증 기준)
-SAFE_ENGINEERED = [
-    'FS_overturning',       # Feature Importance 2위, Safe
-    'kern_ratio',           # Feature Importance 3위, Safe
-    'effective_eccentricity',  # Feature Importance 5위
-    'eccentric_combined',   # Safe
-    'p_delta_eccentricity', # Safe
-]
-
-# Phase 2 최종 사용 피처 세트 (CNN Fusion용)
-PHYSICS_FEATURE_COLS_V2 = [
-    # 1세대 Safe 피처
-    't_compactness',
-    'f_cx_offset',
-    't_left_mass_ratio',
-    't_cx_offset',
-    'f_mass_upper_ratio',
-    # 2세대 Safe + 고중요도
-    'FS_overturning',
-    'kern_ratio',
-    'effective_eccentricity',
-    'eccentric_combined',
-    'p_delta_eccentricity',
-]
-
-
 def main(args=None):
     # ----------------------------------------------------------------
     # 1. combined_features_v2.csv 로드
@@ -124,7 +116,7 @@ def main(args=None):
     if not v2_path.exists():
         raise FileNotFoundError(
             f"combined_features_v2.csv 없음: {v2_path}\n"
-            "먼저 extract_pixel_features.py 실행 필요"
+            "먼저 extract_base.py (Step 1) 실행 필요"
         )
 
     df = pd.read_csv(v2_path)
@@ -140,7 +132,7 @@ def main(args=None):
     ]
     missing = [c for c in required if c not in df.columns]
     if missing:
-        raise ValueError(f"필요 컬럼 누락: {missing}")
+        raise ValueError(f"필요 컬럼 누락: {missing}\nextract_base.py 재실행 필요")
     print(f"[2] 필요 컬럼 확인 완료")
 
     # ----------------------------------------------------------------
@@ -162,15 +154,15 @@ def main(args=None):
 
     print(f"\n[4] 저장 완료: {out_path}")
     print(f"    최종 shape: {df.shape}")
-    print(f"\n[Phase 2 Fusion용 피처 세트 ({len(PHYSICS_FEATURE_COLS_V2)}종)]")
-    for col in PHYSICS_FEATURE_COLS_V2:
-        status = '✅ Safe' if col in SAFE_ENGINEERED or col in [
+    print(f"\n[모델 입력 피처 세트 ({len(PHYS_COLS_V2)}종, PHYS_COLS_V2 from config.py)]")
+    for col in PHYS_COLS_V2:
+        safe = '✅ Safe' if (col in SAFE_ENGINEERED or col in [
             't_compactness', 'f_cx_offset', 't_left_mass_ratio',
             't_cx_offset', 'f_mass_upper_ratio'
-        ] else '⚠️  확인필요'
-        print(f"    {col:<30} {status}")
+        ]) else '⚠️  Caution'
+        print(f"    {col:<30} {safe}")
 
-    print("\n✅ combined_features_v3.csv 생성 완료. train.py에서 PHYS_COLS_V2로 교체하세요.")
+    print("\n✅ combined_features_v3.csv 생성 완료.")
 
 
 if __name__ == '__main__':
