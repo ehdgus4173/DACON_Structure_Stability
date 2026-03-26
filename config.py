@@ -32,12 +32,6 @@ TEST_DIR  = DATASET_DIR / 'test'
 TRAIN_CSV = DATASET_DIR / 'train.csv'
 DEV_CSV   = DATASET_DIR / 'dev.csv'
 
-if _KAGGLE:
-    SAMPLE_SUBMISSION_CSV = DATASET_DIR / 'sample_submission.csv'
-else:
-    GUIDELINE_DIR         = PROJECT_ROOT.parent / 'EDA' / 'codebase' / 'example'
-    SAMPLE_SUBMISSION_CSV = GUIDELINE_DIR / 'sample_submission.csv'
-
 # ================================================================
 # 모델 입력 피처 상수 (PHYS_COLS_V2)
 # ================================================================

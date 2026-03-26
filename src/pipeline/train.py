@@ -73,7 +73,7 @@ def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--epochs',     type=int,   default=20)
     parser.add_argument('--batch_size', type=int,   default=32)
-    parser.add_argument('--lr',         type=float, default=1e-3)
+    parser.add_argument('--lr',         type=float, default=3e-4)
     parser.add_argument('--seed',       type=int,   default=42)
     args = parser.parse_args(args if args is not None else [])
 

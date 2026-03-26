@@ -7,7 +7,7 @@ from tqdm import tqdm
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from config import TRAIN_CSV, DEV_CSV, PROJECT_ROOT, DATASET_DIR
+from config import TRAIN_CSV, DEV_CSV, PROJECT_ROOT, DATASET_DIR, TEST_DIR
 
 
 # ================================================================
@@ -304,7 +304,7 @@ def extract_features_top(img_np):
 
     # ── Principal Axis 보정 offset ────────────────────────────────
     # minAreaRect angle로 마스크 회전 → 카메라 틸트 제거 후 편심 재계산
-    rot_angle = float(angle % 90)
+    rot_angle = -float(angle)
     M_rot     = cv2.getRotationMatrix2D((gcx, gcy), rot_angle, 1.0)
     mask_rot  = cv2.warpAffine(mask, M_rot, (W, H), flags=cv2.INTER_NEAREST)
     M2 = cv2.moments(mask_rot)
@@ -366,23 +366,32 @@ def main(args=None):
     parser = argparse.ArgumentParser()
     parser.parse_args(args if args is not None else [])
 
-    test_csv_path = PROJECT_ROOT.parent / "EDA" / "codebase" / "example" / "sample_submission.csv"
+    # ----------------------------------------------------------------
+    # 1. Prepare DataFrames (scan TEST_DIR directly)
+    # ----------------------------------------------------------------
+    test_ids = sorted([d.name for d in TEST_DIR.iterdir() if d.is_dir()])
+    assert len(test_ids) > 0, f"TEST_DIR에 샘플이 없음: {TEST_DIR}"
+
     dfs = {
         "train": pd.read_csv(TRAIN_CSV),
         "dev":   pd.read_csv(DEV_CSV),
+        "test":  pd.DataFrame({"id": test_ids}),
     }
-    if test_csv_path.exists():
-        dfs["test"] = pd.read_csv(test_csv_path)
 
+    # ----------------------------------------------------------------
+    # 2. Extract features
+    # ----------------------------------------------------------------
     all_features = []
     print("Extracting pixel + physics + grid features from images (train/dev/test)...")
     for split_name, df in dfs.items():
         base_dir = DATASET_DIR / split_name
         for _, row in tqdm(df.iterrows(), total=len(df), desc=f"Processing {split_name}"):
             sample_id = str(row['id'])
-            feats = extract_all_features(base_dir / sample_id)
-            if feats is not None:
-                feats["id"] = sample_id
+            # main()에서 feats에 id를 추가할 때 순서를 앞으로:
+            feats = {"id": sample_id}
+            extracted = extract_all_features(base_dir / sample_id)
+            if extracted is not None:
+                feats.update(extracted)
                 all_features.append(feats)
 
     combined_df = pd.DataFrame(all_features)
@@ -393,14 +402,6 @@ def main(args=None):
         if col in combined_df.columns:
             rate = combined_df[col].mean() * 100
             print(f"  {col}: {rate:.1f}% detection rate")
-
-    video_csv = (PROJECT_ROOT.parent / "EDA" / "codebase"
-                 / "0324_제공데이터분석" / "04_mp4_ana" / "outputs"
-                 / "video_motion_features.csv")
-    if video_csv.exists():
-        v_df = pd.read_csv(video_csv).drop(columns=['label', 'label_bin'], errors='ignore')
-        combined_df = combined_df.merge(v_df, on='id', how='left')
-        print(f"Merged video motion features → {len(combined_df.columns)} columns")
 
     output_dir = PROJECT_ROOT / "features"
     output_dir.mkdir(exist_ok=True)

@@ -57,23 +57,16 @@ class MultiViewDataset(Dataset):
                 img = self.transform(img)
             views.append(img)
 
-        # 2. 물리 피처 로딩
-        feats = None
-        if self.feature_df is not None and self.feature_cols is not None:
-            feats = torch.tensor(
-                self.feature_df.loc[sample_id, self.feature_cols].astype(float).values,
-                dtype=torch.float32,
-            )
+        # 2. 물리 피처 로딩 (id는 str로 명시적 변환하여 조회)
+        feats = torch.tensor(
+            self.feature_df.loc[str(sample_id), self.feature_cols].astype(float).values,
+            dtype=torch.float32,
+        )
 
         # 3. 반환
-        if feats is not None:
-            if self.is_test:
-                return views, feats
-            return views, feats, self.label_map[self.df.iloc[idx]['label']]
-        else:
-            if self.is_test:
-                return views
-            return views, self.label_map[self.df.iloc[idx]['label']]
+        if self.is_test:
+            return views, feats
+        return views, feats, self.label_map[self.df.iloc[idx]['label']]
 
 
 def get_transforms(img_size: int = 224):

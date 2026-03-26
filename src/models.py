@@ -30,7 +30,7 @@ class MultiViewResNet(nn.Module):
             nn.Linear(256, num_classes),
         )
 
-    def forward(self, views, phys_feats=None):
+    def forward(self, views, phys_feats):
         """
         Args:
             views:      [front_tensor, top_tensor]  shape: (B, 3, H, W)
@@ -40,11 +40,7 @@ class MultiViewResNet(nn.Module):
         f2 = self.feature_extractor(views[1]).view(views[1].size(0), -1)  # (B, 512)
         img_feat = torch.cat((f1, f2), dim=1)                              # (B, 1024)
 
-        if phys_feats is not None:
-            p        = self.phys_mlp(phys_feats)                           # (B, 32)
-            combined = torch.cat((img_feat, p), dim=1)                     # (B, 1056)
-        else:
-            zeros    = torch.zeros(img_feat.size(0), 32, device=img_feat.device)
-            combined = torch.cat((img_feat, zeros), dim=1)
+        p        = self.phys_mlp(phys_feats)                           # (B, 32)
+        combined = torch.cat((img_feat, p), dim=1)                     # (B, 1056)
 
         return self.classifier(combined)

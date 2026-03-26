@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR, FEATURES_DIR, OUTPUT_DIR, PHYS_COLS_V2
+from config import TEST_DIR, CHECKPOINT_DIR, FEATURES_DIR, OUTPUT_DIR, PHYS_COLS_V2
 from src.dataset import MultiViewDataset, get_transforms
 from src.models import MultiViewResNet
 
@@ -26,7 +26,12 @@ def main(args=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    test_df    = pd.read_csv(SAMPLE_SUBMISSION_CSV)
+    # ----------------------------------------------------------------
+    # 1. Prepare test_df (scan TEST_DIR directly)
+    # ----------------------------------------------------------------
+    test_ids = sorted([d.name for d in TEST_DIR.iterdir() if d.is_dir()])
+    assert len(test_ids) == 1000, f"test 샘플 수 이상: {len(test_ids)}개"
+    test_df = pd.DataFrame({"id": test_ids})
     feature_df = pd.read_csv(FEATURES_DIR / "combined_features_v3.csv")  # config.FEATURES_DIR 사용
 
     _, test_transform = get_transforms()

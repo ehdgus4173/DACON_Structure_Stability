@@ -1,16 +1,3 @@
-"""
-extract_advanced.py
-찬호의 구조공학 2세대 피처(FS_overturning, kern_ratio 등 9종)를
-combined_features_v2.csv에 병합하여 combined_features_v3.csv 생성.
-
-출처: 찬호 검증 스크립트 (add_physics_features 함수 기반)
-실행: run_pipeline.py Step 2에서 자동 호출 (직접 실행 금지)
-출력: DACON_Structure_Stability/features/combined_features_v3.csv
-
-입력 의존성:
-    features/combined_features_v2.csv (extract_base.py 출력)
-"""
-
 import sys
 import numpy as np
 import pandas as pd
@@ -23,15 +10,6 @@ from config import PROJECT_ROOT, PHYS_COLS_V2
 # ================================================================
 # 2세대 피처 메타 정보
 # ================================================================
-
-# 도메인 시프트 Safe 피처 (찬호 검증 기준)
-SAFE_ENGINEERED = [
-    'FS_overturning',           # Feature Importance 2위
-    'kern_ratio',               # Feature Importance 3위
-    'effective_eccentricity',   # Feature Importance 5위
-    'eccentric_combined',
-    'p_delta_eccentricity',
-]
 
 # 2세대 피처 전체 목록 (CSV에 저장되는 컬럼, PHYS_COLS_V2의 상위 집합)
 ENGINEERED_COLS = [
@@ -154,13 +132,10 @@ def main(args=None):
 
     print(f"\n[4] 저장 완료: {out_path}")
     print(f"    최종 shape: {df.shape}")
-    print(f"\n[모델 입력 피처 세트 ({len(PHYS_COLS_V2)}종, PHYS_COLS_V2 from config.py)]")
+    print(f"\n[모델 입력 피처 ({len(PHYS_COLS_V2)}종, PHYS_COLS_V2 from config.py)]")
     for col in PHYS_COLS_V2:
-        safe = '✅ Safe' if (col in SAFE_ENGINEERED or col in [
-            't_compactness', 'f_cx_offset', 't_left_mass_ratio',
-            't_cx_offset', 'f_mass_upper_ratio'
-        ]) else '⚠️  Caution'
-        print(f"    {col:<30} {safe}")
+        tag = '(2세대)' if col in ENGINEERED_COLS else '(1세대)'
+        print(f"    {col:<30} {tag}")
 
     print("\n✅ combined_features_v3.csv 생성 완료.")
 
