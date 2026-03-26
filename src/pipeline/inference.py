@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR, PROJECT_ROOT, PHYS_COLS_V2
+from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR, FEATURES_DIR, OUTPUT_DIR, PHYS_COLS_V2
 from src.dataset import MultiViewDataset, get_transforms
 from src.models import MultiViewResNet
 
@@ -17,14 +17,17 @@ from src.models import MultiViewResNet
 def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--output',     type=str, default='submission.csv')
+    parser.add_argument('--output',     type=str, default=None)
     args = parser.parse_args(args if args is not None else [])
+
+    # --output 미지정 시 config.OUTPUT_DIR 기본 사용
+    output_path = Path(args.output) if args.output else OUTPUT_DIR / 'submission.csv'
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     test_df    = pd.read_csv(SAMPLE_SUBMISSION_CSV)
-    feature_df = pd.read_csv(PROJECT_ROOT / "features" / "combined_features_v3.csv")
+    feature_df = pd.read_csv(FEATURES_DIR / "combined_features_v3.csv")  # config.FEATURES_DIR 사용
 
     _, test_transform = get_transforms()
     test_dataset = MultiViewDataset(
@@ -36,7 +39,7 @@ def main(args=None):
     model = MultiViewResNet(num_classes=1, num_phys_features=len(PHYS_COLS_V2)).to(device)
     best_model_path = CHECKPOINT_DIR / "best_model.pth"
     if best_model_path.exists():
-        model.load_state_dict(torch.load(best_model_path))
+        model.load_state_dict(torch.load(best_model_path, map_location=device))
         print(f"Loaded checkpoint: {best_model_path}")
     else:
         print(f"⚠️  Checkpoint not found: {best_model_path} — using untrained model")
@@ -53,12 +56,12 @@ def main(args=None):
 
     all_probs  = np.array(all_probs)
     submission = pd.DataFrame({
-        'id':           test_df['id'],
+        'id':            test_df['id'],
         'unstable_prob': all_probs,
         'stable_prob':   1.0 - all_probs,
     })
-    submission.to_csv(args.output, encoding='UTF-8-sig', index=False)
-    print(f"✅ Saved: {args.output}")
+    submission.to_csv(output_path, encoding='UTF-8-sig', index=False)
+    print(f"✅ Saved: {output_path}")
 
 if __name__ == '__main__':
     main()

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
-from config import TRAIN_CSV, DEV_CSV, TRAIN_DIR, DEV_DIR, CHECKPOINT_DIR, PROJECT_ROOT, PHYS_COLS_V2
+from config import TRAIN_CSV, DEV_CSV, TRAIN_DIR, DEV_DIR, CHECKPOINT_DIR, FEATURES_DIR, PHYS_COLS_V2
 from src.dataset import MultiViewDataset, get_transforms
 from src.models import MultiViewResNet
 
@@ -83,7 +83,7 @@ def main(args=None):
 
     train_df   = pd.read_csv(TRAIN_CSV)
     dev_df     = pd.read_csv(DEV_CSV)
-    feature_df = pd.read_csv(PROJECT_ROOT / "features" / "combined_features_v3.csv")
+    feature_df = pd.read_csv(FEATURES_DIR / "combined_features_v3.csv")  # config.FEATURES_DIR 사용
 
     train_transform, val_transform = get_transforms()
 
@@ -104,7 +104,7 @@ def main(args=None):
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
-    best_logloss   = float('inf')
+    best_logloss    = float('inf')
     best_model_path = CHECKPOINT_DIR / "best_model.pth"
 
     print(f"Training {args.epochs} epochs | phys_features={len(PHYS_COLS_V2)}dim")

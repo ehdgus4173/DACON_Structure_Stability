@@ -37,7 +37,7 @@ def main():
     parser.add_argument('--mode',         type=str,   choices=['train', 'inference', 'all'], default='all')
     parser.add_argument('--epochs',       type=int,   default=20)
     parser.add_argument('--batch_size',   type=int,   default=32)
-    parser.add_argument('--lr',           type=float, default=1e-3)
+    parser.add_argument('--lr',           type=float, default=3e-4)  # 1e-3 → 3e-4
     parser.add_argument('--skip_extract', action='store_true', help="피처 CSV 존재 시 추출 스킵")
     parser.add_argument('--output',       type=str,   default='submission.csv')
     args = parser.parse_args()
