@@ -8,9 +8,13 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
 from config import TRAIN_CSV, DEV_CSV, TRAIN_DIR, DEV_DIR, CHECKPOINT_DIR, PROJECT_ROOT
-from dataset import MultiViewDataset, get_transforms
-from models import MultiViewResNet
+from src.dataset import MultiViewDataset, get_transforms
+from src.models import MultiViewResNet
 
 PHYS_COLS_V2 = [
     't_compactness', 'f_cx_offset', 't_left_mass_ratio',
@@ -73,14 +77,14 @@ def validate(model, loader, criterion, device):
     
     return logloss, acc
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser()
     # 제출 모델 튜닝 권장사항 (Epoch 20)
-    parser.add_argument('--epochs', type=int, default=3)
+    parser.add_argument('--epochs', type=int, default=20)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
-    args = parser.parse_args()
+    args = parser.parse_args(args if args is not None else [])
 
     seed_everything(args.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -112,6 +116,7 @@ def main():
     model = MultiViewResNet(num_classes=1, num_phys_features=len(PHYS_COLS_V2)).to(device)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
 
     best_logloss = float('inf')
     best_model_path = CHECKPOINT_DIR / "best_model.pth"
@@ -130,6 +135,8 @@ def main():
             best_logloss = val_logloss
             torch.save(model.state_dict(), best_model_path)
             print(f"  -> Best model saved to {best_model_path} (LogLoss: {best_logloss:.4f})")
+            
+        scheduler.step()
 
 if __name__ == '__main__':
     main()

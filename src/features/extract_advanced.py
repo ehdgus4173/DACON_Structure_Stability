@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from config import PROJECT_ROOT, TRAIN_CSV, DEV_CSV, SAMPLE_SUBMISSION_CSV
 
 
@@ -116,7 +116,7 @@ PHYSICS_FEATURE_COLS_V2 = [
 ]
 
 
-def main():
+def main(args=None):
     # ----------------------------------------------------------------
     # 1. combined_features_v2.csv 로드
     # ----------------------------------------------------------------

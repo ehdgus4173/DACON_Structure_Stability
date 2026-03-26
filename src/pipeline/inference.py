@@ -5,9 +5,13 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+
 from config import TEST_DIR, SAMPLE_SUBMISSION_CSV, CHECKPOINT_DIR, PROJECT_ROOT
-from dataset import MultiViewDataset, get_transforms
-from models import MultiViewResNet
+from src.dataset import MultiViewDataset, get_transforms
+from src.models import MultiViewResNet
 
 PHYS_COLS_V2 = [
     't_compactness', 'f_cx_offset', 't_left_mass_ratio',
@@ -16,11 +20,11 @@ PHYS_COLS_V2 = [
     'eccentric_combined', 'p_delta_eccentricity'
 ]
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--output', type=str, default='submission.csv')
-    args = parser.parse_args()
+    args = parser.parse_args(args if args is not None else [])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
