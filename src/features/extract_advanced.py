@@ -3,8 +3,22 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from config import PROJECT_ROOT, PHYS_COLS_V2
+import os
+
+_IS_KAGGLE = os.environ.get('KAGGLE_MODE') == '1' or os.path.exists('/kaggle')
+
+if _IS_KAGGLE:
+    _FEAT_DIR    = Path(os.environ.get('FEAT_OUT_DIR', '/kaggle/working/features'))
+    PROJECT_ROOT = Path('/kaggle/working')
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+    try:
+        from config import PHYS_COLS_V2
+    except ImportError:
+        PHYS_COLS_V2 = []
+else:
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+    from config import PROJECT_ROOT, PHYS_COLS_V2
+    _FEAT_DIR = PROJECT_ROOT / 'features' 
 
 
 # ================================================================

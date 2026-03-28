@@ -6,8 +6,23 @@ from pathlib import Path
 from tqdm import tqdm
 import sys
 
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-from config import TRAIN_CSV, DEV_CSV, PROJECT_ROOT, DATASET_DIR, TEST_DIR
+import os
+
+_IS_KAGGLE = os.environ.get('KAGGLE_MODE') == '1' or os.path.exists('/kaggle')
+
+if _IS_KAGGLE:
+    _DATASET_DIR  = Path(os.environ.get('DATASET_DIR',
+        '/kaggle/input/datasets/junseopkim/structure-stability-data/data'))
+    _FEAT_OUT_DIR = Path(os.environ.get('FEAT_OUT_DIR', '/kaggle/working/features'))
+    DATASET_DIR   = _DATASET_DIR
+    TRAIN_CSV     = _DATASET_DIR / 'train.csv'
+    DEV_CSV       = _DATASET_DIR / 'dev.csv'
+    TEST_DIR      = _DATASET_DIR / 'test'
+    PROJECT_ROOT  = Path('/kaggle/working')
+else:
+    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+    from config import TRAIN_CSV, DEV_CSV, PROJECT_ROOT, DATASET_DIR, TEST_DIR
+    _FEAT_OUT_DIR = PROJECT_ROOT / 'features' 
 
 
 # ================================================================
