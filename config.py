@@ -17,7 +17,8 @@ if _KAGGLE:
     CHECKPOINT_DIR = Path('/kaggle/working/checkpoints')
     OUTPUT_DIR     = Path('/kaggle/working')
 else:
-    DATASET_DIR    = PROJECT_ROOT.parent / 'dataset'
+    # 로컬: 실제 데이터 위치 (structure-stability/data/)
+    DATASET_DIR    = PROJECT_ROOT.parent / 'structure-stability' / 'data'
     FEATURES_DIR   = PROJECT_ROOT / 'features'
     CHECKPOINT_DIR = PROJECT_ROOT / 'checkpoints'
     OUTPUT_DIR     = PROJECT_ROOT

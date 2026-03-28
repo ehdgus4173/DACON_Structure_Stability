@@ -1,7 +1,6 @@
 """
-피처 중요도 분석 — XGBoost 내장 feature_importance 기반
-목적: 현재 물리 피처 6개 중 실제 기여도 높은 피처 파악
-     팀원 피처 통합 시 선택 기준으로 활용
+피처 중요도 분석 — combined_features_v3.csv 기반 (팀원 피처 20개)
+목적: 새 피처들의 실제 기여도 파악 + 그룹별 Ablation 기준 설정
 실행: conda stability 환경에서
       cd DACON_Structure_Stability/notebooks
       python shap_analysis.py
@@ -10,65 +9,89 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.append(str(REPO_ROOT / "src"))
 
 import numpy as np
 import pandas as pd
+import matplotlib
+matplotlib.rcParams['font.family'] = 'DejaVu Sans'  # 한글 깨짐 방지
 import matplotlib.pyplot as plt
-from PIL import Image
 from tqdm import tqdm
-
-from physics_features import extract_physics_features, PHYSICS_FEATURE_NAMES
-
-# ================================================================
-# 1. 데이터 로드
-# ================================================================
-DATA_DIR = Path("C:/Users/userPC/Desktop/Univ/2026/1학기/structure-stability/data")
-
-train_df = pd.read_csv(DATA_DIR / "train.csv")
-dev_df   = pd.read_csv(DATA_DIR / "dev.csv")
-all_df   = pd.concat([train_df, dev_df], ignore_index=True)
-print(f"전체 샘플: {len(all_df)}")
-
-# ================================================================
-# 2. 물리 피처 추출
-# ================================================================
-features_list = []
-labels_list   = []
-failed = 0
-
-for _, row in tqdm(all_df.iterrows(), total=len(all_df), desc="피처 추출"):
-    sample_id = str(row['id'])
-    split     = "train" if sample_id.startswith("TRAIN") else "dev"
-    front_path = DATA_DIR / split / sample_id / "front.png"
-    top_path   = DATA_DIR / split / sample_id / "top.png"
-    try:
-        front_img = np.array(Image.open(front_path).convert("RGB"))
-        top_img   = np.array(Image.open(top_path).convert("RGB"))
-        feats     = extract_physics_features(front_img, top_img)
-    except Exception:
-        feats = np.zeros(6, dtype=np.float32)
-        failed += 1
-    features_list.append(feats)
-    labels_list.append(1 if row['label'] == 'unstable' else 0)
-
-X = np.array(features_list, dtype=np.float32)
-y = np.array(labels_list,   dtype=np.int32)
-print(f"추출 완료 — 실패: {failed}/{len(all_df)}")
-
-# ================================================================
-# 3. XGBoost 학습
-# ================================================================
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, accuracy_score
 
+# config.py에서 PHYS_COLS_V2 로드
+try:
+    from config import PHYS_COLS_V2, DATASET_DIR, PROJECT_ROOT
+    DATA_DIR   = DATASET_DIR
+    FEAT_PATH  = PROJECT_ROOT / 'features' / 'combined_features_v3.csv'
+    print(f"config.py 로드 완료")
+    print(f"DATA_DIR:  {DATA_DIR}")
+    print(f"FEAT_PATH: {FEAT_PATH}")
+except ImportError:
+    print("config.py 없음 — 경로 직접 설정")
+    DATA_DIR  = Path("C:/Users/userPC/Desktop/Univ/2026/1학기/structure-stability/data")
+    FEAT_PATH = REPO_ROOT / 'features' / 'combined_features_v3.csv'
+    PHYS_COLS_V2 = None
+
+# ================================================================
+# 1. 피처 CSV 로드
+# ================================================================
+if not FEAT_PATH.exists():
+    raise FileNotFoundError(
+        f"피처 파일 없음: {FEAT_PATH}\n"
+        "먼저 실행: python src/features/extract_base.py && python src/features/extract_advanced.py"
+    )
+
+feature_df = pd.read_csv(FEAT_PATH)
+print(f"\n피처 CSV 로드: {feature_df.shape}")
+print(f"컬럼 수: {len(feature_df.columns)}")
+
+# 사용할 피처 컬럼 결정
+if PHYS_COLS_V2:
+    # config.py의 PHYS_COLS_V2 사용 (20개)
+    phys_cols = [c for c in PHYS_COLS_V2 if c in feature_df.columns]
+    missing   = [c for c in PHYS_COLS_V2 if c not in feature_df.columns]
+    if missing:
+        print(f"WARNING: 누락된 피처: {missing}")
+else:
+    # 자동 선택 (숫자형 컬럼 전체)
+    phys_cols = [c for c in feature_df.columns
+                 if c != 'id' and feature_df[c].dtype in ['float64', 'float32', 'int64']]
+
+print(f"\n사용할 피처 {len(phys_cols)}개:")
+for i, c in enumerate(phys_cols):
+    print(f"  {i+1:2d}. {c}")
+
+# ================================================================
+# 2. 라벨 로드 및 피처 병합
+# ================================================================
+train_df = pd.read_csv(Path(str(DATA_DIR)) / 'train.csv')
+dev_df   = pd.read_csv(Path(str(DATA_DIR)) / 'dev.csv')
+all_df   = pd.concat([train_df, dev_df], ignore_index=True)
+all_df['id'] = all_df['id'].astype(str)
+feature_df['id'] = feature_df['id'].astype(str)
+
+# train/dev 샘플만 필터 (test 제외)
+train_ids = set(all_df['id'].values)
+feat_train = feature_df[feature_df['id'].isin(train_ids)].copy()
+merged = all_df.merge(feat_train[['id'] + phys_cols], on='id', how='inner')
+print(f"\n병합 후 샘플: {len(merged)}개")
+
+X = merged[phys_cols].fillna(0).values.astype(np.float32)
+y = (merged['label'] == 'unstable').astype(int).values
+
+# ================================================================
+# 3. XGBoost 학습
+# ================================================================
 X_train, X_val, y_train, y_val = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
 
 clf = XGBClassifier(
-    n_estimators=200,
+    n_estimators=300,
     max_depth=4,
     learning_rate=0.05,
     subsample=0.8,
@@ -84,56 +107,91 @@ val_acc     = accuracy_score(y_val, (val_probs >= 0.5).astype(int))
 print(f"\nXGBoost Val LogLoss: {val_logloss:.4f} | Acc: {val_acc:.4f}")
 
 # ================================================================
-# 4. 피처 중요도 분석 (XGBoost 내장 — 3가지 기준)
+# 4. 피처 중요도 분석 — gain / weight / cover 3가지
 # ================================================================
 importance_types = {
-    'weight':  '사용 횟수 (분기 빈도)',
-    'gain':    '평균 정보 이득 (예측 기여도)',
-    'cover':   '커버하는 샘플 수'
+    'gain':   '예측 기여도 (gain)',
+    'weight': '사용 빈도 (weight)',
+    'cover':  '커버 샘플 수 (cover)',
 }
 
-FIG_DIR = REPO_ROOT / "reports" / "figures"
+FIG_DIR = REPO_ROOT / 'reports' / 'figures'
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 
-fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+fig, axes = plt.subplots(1, 3, figsize=(20, 8))
 
+importance_results = {}
 for ax, (imp_type, desc) in zip(axes, importance_types.items()):
     scores = clf.get_booster().get_score(importance_type=imp_type)
-    # 피처명 매핑 (f0~f5 → PHYSICS_FEATURE_NAMES)
-    named_scores = {
-        PHYSICS_FEATURE_NAMES[int(k[1:])]: v
-        for k, v in scores.items()
-    }
-    # 없는 피처는 0으로
-    for name in PHYSICS_FEATURE_NAMES:
-        if name not in named_scores:
-            named_scores[name] = 0.0
+    named  = {}
+    for k, v in scores.items():
+        idx = int(k[1:])
+        if idx < len(phys_cols):
+            named[phys_cols[idx]] = v
+    for name in phys_cols:
+        if name not in named:
+            named[name] = 0.0
+    importance_results[imp_type] = named
 
-    imp_df = pd.DataFrame({
-        'feature': list(named_scores.keys()),
-        'score':   list(named_scores.values())
-    }).sort_values('score', ascending=True)
-
+    imp_df = pd.DataFrame({'feature': list(named.keys()),
+                            'score':   list(named.values())}).sort_values('score', ascending=True)
     ax.barh(imp_df['feature'], imp_df['score'], color='steelblue')
-    ax.set_title(f'{imp_type}\n({desc})')
+    ax.set_title(f'{imp_type}\n({desc})', fontsize=11)
     ax.set_xlabel('Score')
 
-plt.suptitle('물리 피처 중요도 분석 (XGBoost)', fontsize=14, y=1.02)
+plt.suptitle(f'Physical Feature Importance (XGBoost, {len(phys_cols)} features)', fontsize=14, y=1.02)
 plt.tight_layout()
-save_path = str(FIG_DIR / "feature_importance.png")
+save_path = str(FIG_DIR / 'feature_importance_v2.png')
 plt.savefig(save_path, dpi=150, bbox_inches='tight')
 print(f"\n저장: {save_path}")
 
-# 텍스트 요약 출력
-print("\n=== gain 기준 피처 중요도 (예측 기여도) ===")
-scores = clf.get_booster().get_score(importance_type='gain')
-named = {PHYSICS_FEATURE_NAMES[int(k[1:])]: v for k, v in scores.items()}
-for name in PHYSICS_FEATURE_NAMES:
-    if name not in named:
-        named[name] = 0.0
-summary = pd.DataFrame({'feature': list(named.keys()), 'gain': list(named.values())})
-summary = summary.sort_values('gain', ascending=False)
-print(summary.to_string(index=False))
+# ================================================================
+# 5. gain 기준 순위 출력 + 그룹별 분석
+# ================================================================
+gain_df = pd.DataFrame({'feature': list(importance_results['gain'].keys()),
+                         'gain':   list(importance_results['gain'].values())}
+                        ).sort_values('gain', ascending=False).reset_index(drop=True)
+
+print("\n=== gain 기준 피처 중요도 (높을수록 중요) ===")
+print(f"{'순위':>4} {'피처':35} {'gain':>8}")
+print("-" * 52)
+
+# 그룹 정의
+GROUP_A = {'f_cx_offset', 'f_mass_upper_ratio', 't_compactness',
+           't_cx_offset', 't_left_mass_ratio'}
+GROUP_B = {'f_cy_ratio', 't_frontback_mass_ratio', 't_pa_cx_offset', 't_pa_cy_offset'}
+GROUP_C = {'FS_overturning', 'kern_ratio', 'effective_eccentricity',
+           'eccentric_combined', 'p_delta_eccentricity'}
+GROUP_D = {'front_grid_detected', 'front_grid_tilt_angle', 'front_grid_perspective_ratio',
+           'top_grid_detected', 'top_grid_tilt_angle', 'top_grid_perspective_ratio'}
+
+group_map = {}
+for f in GROUP_A: group_map[f] = 'A (기존)'
+for f in GROUP_B: group_map[f] = 'B (신규 1세대)'
+for f in GROUP_C: group_map[f] = 'C (2세대 구조공학)'
+for f in GROUP_D: group_map[f] = 'D (격자 시점)'
+
+for i, row in gain_df.iterrows():
+    grp = group_map.get(row['feature'], '?')
+    print(f"{i+1:>4}. {row['feature']:35} {row['gain']:8.3f}  [{grp}]")
+
+# 그룹별 평균 중요도
+print("\n=== 그룹별 평균 gain ===")
+for grp_name, grp_set in [('A 기존 피처', GROUP_A), ('B 신규 1세대', GROUP_B),
+                            ('C 2세대 구조공학', GROUP_C), ('D 격자 시점', GROUP_D)]:
+    grp_gains = [importance_results['gain'].get(f, 0) for f in grp_set]
+    print(f"  {grp_name:20}: 평균 {np.mean(grp_gains):.3f}  합 {np.sum(grp_gains):.3f}")
+
+# ================================================================
+# 6. 권장 physics_dim 조합 제안
+# ================================================================
+print("\n=== Ablation 실험 권장 조합 ===")
+print("  EXP-017: dim=20 (전체)")
+print("  EXP-018: dim=20 + Phys MLP")
+print("  EXP-019: dim=14 (격자 D 제외)")
+print("  EXP-019b: dim=9 (격자 D + 2세대 C 제외)")
+print("  EXP-019c: dim=5 (기존 A만)")
+print("\n각 실험 결과로 어떤 그룹이 실제로 기여하는지 확인 후 최적 dim 결정")
 
 plt.show()
-print("\n완료.")
+print("\n분석 완료.")

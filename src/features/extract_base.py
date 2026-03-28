@@ -26,6 +26,15 @@ else:
 
 
 # ================================================================
+# 한글 경로 대응 imread 헬퍼
+# ================================================================
+def _imread(path):
+    import numpy as np
+    buf = np.fromfile(str(path), dtype=np.uint8)
+    img = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+    return img
+
+# ================================================================
 # 이미지 전반 통계 피처
 # ================================================================
 
@@ -355,8 +364,8 @@ def extract_all_features(sample_dir: Path):
     if not front_path.exists() or not top_path.exists():
         return None
 
-    front_img = cv2.cvtColor(cv2.imread(str(front_path)), cv2.COLOR_BGR2RGB)
-    top_img   = cv2.cvtColor(cv2.imread(str(top_path)),   cv2.COLOR_BGR2RGB)
+    front_img = cv2.cvtColor(_imread(front_path), cv2.COLOR_BGR2RGB)
+    top_img   = cv2.cvtColor(_imread(top_path),   cv2.COLOR_BGR2RGB)
 
     feats = {}
     for k, v in extract_image_features(front_img).items():
