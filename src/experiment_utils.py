@@ -140,23 +140,33 @@ def _build_loaders(config: dict, device=None):
     n_dev = len(dev_csv)
     n_train_from_dev = int(n_dev * dev_ratio)
 
-    if n_train_from_dev > 0:
-        dev_for_train = dev_csv.sample(n=n_train_from_dev, random_state=random_state)
-        dev_for_val   = dev_csv.drop(dev_for_train.index).reset_index(drop=True)
-        train_df      = pd.concat([train_csv, dev_for_train], ignore_index=True)
-    else:
-        train_df  = train_csv.copy()
-        dev_for_val = dev_csv.copy()
-
-    # ── Dataset 생성 ────────────────────────────────────────────
     train_dir = os.path.join(data_dir, 'train')
     dev_dir   = os.path.join(data_dir, 'dev')
 
-    train_ds = MultiViewDataset(
-        df=train_df, root_dir=train_dir,
-        transform=train_transform,
-        feature_df=feature_df, feature_cols=phys_cols,
-    )
+    # train/dev samples have different root_dirs, so build separate Datasets and concat
+    if n_train_from_dev > 0:
+        dev_for_train = dev_csv.sample(n=n_train_from_dev, random_state=random_state)
+        dev_for_val   = dev_csv.drop(dev_for_train.index).reset_index(drop=True)
+        train_only_ds = MultiViewDataset(
+            df=train_csv, root_dir=train_dir,
+            transform=train_transform,
+            feature_df=feature_df, feature_cols=phys_cols,
+        )
+        dev_train_ds = MultiViewDataset(
+            df=dev_for_train, root_dir=dev_dir,
+            transform=train_transform,
+            feature_df=feature_df, feature_cols=phys_cols,
+        )
+        from torch.utils.data import ConcatDataset
+        train_ds = ConcatDataset([train_only_ds, dev_train_ds])
+    else:
+        dev_for_val = dev_csv.copy()
+        train_ds = MultiViewDataset(
+            df=train_csv, root_dir=train_dir,
+            transform=train_transform,
+            feature_df=feature_df, feature_cols=phys_cols,
+        )
+
     val_ds = MultiViewDataset(
         df=dev_for_val, root_dir=dev_dir,
         transform=val_transform,

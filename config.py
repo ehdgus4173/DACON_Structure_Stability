@@ -18,7 +18,9 @@ if _KAGGLE:
     OUTPUT_DIR     = Path('/kaggle/working')
 else:
     # 로컬: 실제 데이터 위치 (structure-stability/data/)
-    DATASET_DIR    = PROJECT_ROOT.parent / 'structure-stability' / 'data'
+    # DATASET_DIR 환경변수로 오버라이드 가능 (팀원 경로 다를 때)
+    _env_dataset = os.environ.get('DATASET_DIR')
+    DATASET_DIR = Path(_env_dataset) if _env_dataset else PROJECT_ROOT.parent / 'structure-stability' / 'data' 
     FEATURES_DIR   = PROJECT_ROOT / 'features'
     CHECKPOINT_DIR = PROJECT_ROOT / 'checkpoints'
     OUTPUT_DIR     = PROJECT_ROOT
