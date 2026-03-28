@@ -141,9 +141,9 @@ MultiViewResNet
     손실함수: BCEWithLogitsLoss
 ```
 
-**물리 피처 20종 (PHYS_COLS_V2):**
-`f_cx_offset`, `f_cy_ratio`, `f_mass_upper_ratio`, `t_compactness`, `t_cx_offset`, `t_left_mass_ratio`, `t_frontback_mass_ratio`, `t_pa_cx_offset`, `t_pa_cy_offset`,
-`FS_overturning`, `kern_ratio`, `effective_eccentricity`, `eccentric_combined`, `p_delta_eccentricity`,
+**물리 피처 21종 (PHYS_COLS_V2):**
+`f_cx_offset`, `f_cy_ratio`, `t_compactness`, `t_cx_offset`, `t_cy_offset`, `t_left_mass_ratio`, `t_frontback_mass_ratio`,
+`FS_top`, `kern_top`, `t_ecc_2d`, `mass_asymmetry_2d`, `support_margin_min`, `height_support_risk`, `compact_ecc`, `t_compactness_sq`,
 `front_grid_detected`, `front_grid_tilt_angle`, `front_grid_perspective_ratio`, `top_grid_detected`, `top_grid_tilt_angle`, `top_grid_perspective_ratio`
 
 ---

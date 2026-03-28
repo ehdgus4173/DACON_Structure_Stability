@@ -8,80 +8,80 @@ from config import PROJECT_ROOT, PHYS_COLS_V2
 
 
 # ================================================================
-# 2세대 피처 메타 정보
+# 2세대 피처 메타 정보  (찬호 feature_engineering_v3.py 기반)
 # ================================================================
 
-# 2세대 피처 전체 목록 (CSV에 저장되는 컬럼, PHYS_COLS_V2의 상위 집합)
 ENGINEERED_COLS = [
-    'FS_overturning',
-    'kern_ratio',
-    'top_heavy_index',
-    'p_delta_eccentricity',
-    'effective_eccentricity',
-    'eccentric_combined',
-    'base_stability_index',
-    'lateral_moment_approx',
-    'slenderness_approx',
+    # FS / kern — top-view 기준 통일 (이기호 방법 A)
+    'FS_top',              # (B_top/2) / t_cx_offset  ← B, e 모두 top
+    'kern_top',            # t_cx_offset / (B_top/6)  ← 동일 좌표계
+
+    # 2축 편심 / 질량 비대칭
+    't_ecc_2d',            # sqrt(t_cx_offset² + t_cy_offset²)
+    'mass_asymmetry_2d',   # sqrt(t_left_mass_ratio² + t_frontback_mass_ratio²)
+
+    # 지지 여유 파생
+    'support_margin_min',  # (B_top/2) - t_ecc_2d  — 양수=안전, 음수=전도 위험
+    'height_support_risk', # f_cy_ratio / (|support_margin_min| + ε)  — 복합 위험도
+
+    # 형상 복합
+    'compact_ecc',         # t_compactness / (ecc_front_2d + ε)
+    't_compactness_sq',    # t_compactness²
 ]
 
 
 # ================================================================
-# 2세대 구조공학 피처 추가 함수 (찬호 코드 이식)
+# 2세대 구조공학 피처 계산  (찬호 build_v3 로직 이식)
 # ================================================================
 def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     """
-    extract_base.py에서 추출한 1세대 피처를 입력받아 구조공학 이론 피처 9종 추가.
+    extract_base.py에서 추출한 1세대 피처를 입력받아 구조공학 피처 추가.
 
     입력 컬럼 필요:
-        t_footprint_area, f_cx_offset, f_cy_offset,
-        f_mass_upper_ratio, f_cy_norm, f_tilt_angle,
-        f_height_ratio, f_width_ratio, t_left_mass_ratio
+        t_footprint_area, t_cx_offset, t_cy_offset,
+        t_left_mass_ratio, t_frontback_mass_ratio,
+        f_cx_offset, f_cy_offset, f_cy_ratio
 
     추가되는 컬럼 (ENGINEERED_COLS):
-        FS_overturning, kern_ratio, top_heavy_index,
-        p_delta_eccentricity, effective_eccentricity,
-        eccentric_combined, base_stability_index,
-        lateral_moment_approx, slenderness_approx
+        FS_top, kern_top,
+        t_ecc_2d, mass_asymmetry_2d,
+        support_margin_min, height_support_risk,
+        compact_ecc, t_compactness_sq
     """
     d = data.copy()
 
-    # 기초 폭 추정 (t_footprint_area의 제곱근으로 근사)
-    B = np.sqrt(d['t_footprint_area'].clip(lower=1e-6))
+    # 기초폭 — top-view 기준
+    B_top = np.sqrt(d['t_footprint_area'].clip(lower=1e-6))
 
-    # 피처 1. 전도 안전율 (FS < 1.5 = Danger)
-    d['FS_overturning'] = (B / 2) / (d['f_cx_offset'].abs() + 1e-6)
+    # ── FS / kern  (이기호 방법 A: B, e 모두 top-view) ──────────────
+    d['FS_top']   = (B_top / 2) / (d['t_cx_offset'].abs() + 1e-6)
+    d['kern_top'] = d['t_cx_offset'].abs() / (B_top / 6 + 1e-6)
 
-    # 피처 2. Kern Ratio (> 1.0 = Unstable)
-    d['kern_ratio'] = d['f_cx_offset'].abs() / (B / 6 + 1e-6)
-
-    # 피처 3. Top-Heavy Index (상부질량 × 높이 비율)
-    d['top_heavy_index'] = d['f_mass_upper_ratio'] * d['f_cy_norm']
-
-    # 피처 4. P-delta 편심
-    d['p_delta_eccentricity'] = (
-        np.sin(np.radians(d['f_tilt_angle'])) * d['f_cy_norm']
+    # ── 2축 편심 ────────────────────────────────────────────────────
+    d['t_ecc_2d'] = np.sqrt(
+        d['t_cx_offset'] ** 2 + d['t_cy_offset'] ** 2
     )
 
-    # 피처 5. 유효 편심 (P-delta 포함)
-    d['effective_eccentricity'] = (
-        d['f_cx_offset'].abs() + d['p_delta_eccentricity'].abs()
+    # ── 2축 질량 비대칭 ─────────────────────────────────────────────
+    # t_frontback_mass_ratio 없으면 t_cy_offset abs로 근사 (찬호 fallback 동일)
+    if 't_frontback_mass_ratio' in d.columns:
+        frontback = d['t_frontback_mass_ratio']
+    else:
+        frontback = d['t_cy_offset'].abs()
+    d['mass_asymmetry_2d'] = np.sqrt(
+        d['t_left_mass_ratio'] ** 2 + frontback ** 2
     )
 
-    # 피처 6. 복합 편심 (x, y 방향 편차 합성)
-    d['eccentric_combined'] = np.sqrt(
-        d['f_cx_offset']**2 + d['f_cy_offset']**2
+    # ── 지지 여유 파생 ───────────────────────────────────────────────
+    d['support_margin_min'] = (B_top / 2) - d['t_ecc_2d']
+    d['height_support_risk'] = (
+        d['f_cy_ratio'] / (d['support_margin_min'].abs() + 1e-6)
     )
 
-    # 피처 7. 기저 안정 지수
-    d['base_stability_index'] = (
-        d['t_footprint_area'] / (d['eccentric_combined'] + 1e-6)
-    )
-
-    # 피처 8. 횡방향 모멘트 근사
-    d['lateral_moment_approx'] = d['t_left_mass_ratio'] * d['f_cy_norm']
-
-    # 피처 9. 세장비 근사
-    d['slenderness_approx'] = d['f_height_ratio'] / (d['f_width_ratio'] + 1e-6)
+    # ── 형상 복합 ────────────────────────────────────────────────────
+    ecc_front_2d = np.sqrt(d['f_cx_offset'] ** 2 + d['f_cy_offset'] ** 2)
+    d['compact_ecc']      = d['t_compactness'] / (ecc_front_2d + 1e-6)
+    d['t_compactness_sq'] = d['t_compactness'] ** 2
 
     return d
 
@@ -104,9 +104,9 @@ def main(args=None):
     # 2. 필요 컬럼 존재 확인
     # ----------------------------------------------------------------
     required = [
-        't_footprint_area', 'f_cx_offset', 'f_cy_offset',
-        'f_mass_upper_ratio', 'f_cy_norm', 'f_tilt_angle',
-        'f_height_ratio', 'f_width_ratio', 't_left_mass_ratio'
+        't_footprint_area', 't_cx_offset', 't_cy_offset',
+        't_left_mass_ratio', 't_compactness',
+        'f_cx_offset', 'f_cy_offset', 'f_cy_ratio',
     ]
     missing = [c for c in required if c not in df.columns]
     if missing:

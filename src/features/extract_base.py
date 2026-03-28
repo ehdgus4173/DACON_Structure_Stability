@@ -222,7 +222,7 @@ def extract_features_front(img_np):
 
     if pts is None or len(pts) < 20:
         return {k: 0.0 for k in [
-            "f_tilt_angle", "f_cx_norm", "f_cy_norm",
+            "f_tilt_angle", "f_cx_norm",
             "f_cx_offset", "f_cy_offset", "f_cy_ratio",
             "f_height_ratio", "f_width_ratio", "f_aspect_ratio",
             "f_bbox_area_ratio", "f_top_width_ratio", "f_mass_upper_ratio",
@@ -237,7 +237,6 @@ def extract_features_front(img_np):
     gcx = M["m10"] / M["m00"] if M["m00"] > 0 else cx
     gcy = M["m01"] / M["m00"] if M["m00"] > 0 else cy
     feats["f_cx_norm"]   = gcx / W
-    feats["f_cy_norm"]   = gcy / H
     feats["f_cx_offset"] = abs(gcx / W - 0.5)
     feats["f_cy_offset"] = gcy / H - 0.5
     feats["f_cy_ratio"]  = gcy / H          # 수직 무게중심 위치 (0=상단, 1=하단)

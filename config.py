@@ -41,23 +41,24 @@ DEV_CSV   = DATASET_DIR / 'dev.csv'
 PHYS_COLS_V2 = [
     # 1세대: front 뷰 (extract_base.py)
     'f_cx_offset',            # 수평 무게중심 편차
-    'f_cy_ratio',             # 수직 무게중심 위치 (0=상단, 1=하단) ← 신규
-    'f_mass_upper_ratio',     # 상단 질량 비율
+    'f_cy_ratio',             # 수직 무게중심 위치 = f_cy_norm
 
     # 1세대: top 뷰 (extract_base.py)
     't_compactness',          # 평면 컴팩트니스
-    't_cx_offset',            # 좌우 무게중심 편차 (raw)
+    't_cx_offset',            # 좌우 무게중심 편차
+    't_cy_offset',            # 앞뒤 무게중심 편차
     't_left_mass_ratio',      # 좌우 질량 불균형
-    't_frontback_mass_ratio', # 앞뒤 질량 불균형 ← 신규
-    't_pa_cx_offset',         # Principal Axis 보정 후 좌우 편심 ← 신규
-    't_pa_cy_offset',         # Principal Axis 보정 후 앞뒤 편심 ← 신규
+    't_frontback_mass_ratio', # 앞뒤 질량 불균형
 
-    # 2세대: 구조공학 수식 (extract_advanced.py)
-    'FS_overturning',
-    'kern_ratio',
-    'effective_eccentricity',
-    'eccentric_combined',
-    'p_delta_eccentricity',
+    # 2세대: 구조공학 수식 (extract_advanced.py) — 찬호 v3 기반
+    'FS_top',              # (B_top/2) / t_cx_offset  ← top-view 통일 (이기호 방법 A)
+    'kern_top',            # t_cx_offset / (B_top/6)  ← top-view 통일
+    't_ecc_2d',            # sqrt(t_cx² + t_cy²)  — 2축 편심
+    'mass_asymmetry_2d',   # sqrt(t_left² + t_frontback²)  — 2축 질량 비대칭
+    'support_margin_min',  # (B_top/2) - t_ecc_2d  — 양수=안전, 음수=전도 위험
+    'height_support_risk', # f_cy_ratio / (|margin| + ε)  — 복합 위험도
+    'compact_ecc',         # t_compactness / (ecc_front_2d + ε)
+    't_compactness_sq',    # t_compactness²
 
     # 격자 기반 카메라 시점 (extract_base.py, Hough 기반)
     'front_grid_detected',

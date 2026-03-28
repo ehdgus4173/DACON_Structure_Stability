@@ -21,8 +21,8 @@ def validate_features(feature_csv_path: Path):
     if len(test_df) > 0:
         if (test_df['f_cx_offset'] == 0).all():
             issues.append("f_cx_offset이 전부 0 → 물리 피처 미추출 상태")
-        if (test_df['FS_overturning'] == 0).mean() > 0.5:
-            issues.append("FS_overturning이 전부 0 → 피처 계산 실패")
+        if (test_df['FS_top'] == 0).mean() > 0.5:
+            issues.append("FS_top이 전부 0 → 피처 계산 실패")
 
     if issues:
         for msg in issues:
