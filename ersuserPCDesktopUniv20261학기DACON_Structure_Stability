@@ -3,26 +3,12 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-import os
-
-_IS_KAGGLE = os.environ.get('KAGGLE_MODE') == '1' or os.path.exists('/kaggle')
-
-if _IS_KAGGLE:
-    _FEAT_DIR    = Path(os.environ.get('FEAT_OUT_DIR', '/kaggle/working/features'))
-    PROJECT_ROOT = Path('/kaggle/working')
-    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-    try:
-        from config import PHYS_COLS_V2
-    except ImportError:
-        PHYS_COLS_V2 = []
-else:
-    sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
-    from config import PROJECT_ROOT, PHYS_COLS_V2
-    _FEAT_DIR = PROJECT_ROOT / 'features'
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+from config import PROJECT_ROOT, PHYS_COLS_V2
 
 
 # ================================================================
-# 2세대 피처 메타 정보 — dh 브랜치 (찬호 v3 / 이기호 방법 A)
+# 2세대 피처 메타 정보  (찬호 feature_engineering_v3.py 기반)
 # ================================================================
 
 ENGINEERED_COLS = [
@@ -45,7 +31,7 @@ ENGINEERED_COLS = [
 
 
 # ================================================================
-# 2세대 구조공학 피처 계산 — dh 브랜치 로직
+# 2세대 구조공학 피처 계산  (찬호 build_v3 로직 이식)
 # ================================================================
 def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     """
@@ -54,7 +40,7 @@ def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     입력 컬럼 필요:
         t_footprint_area, t_cx_offset, t_cy_offset,
         t_left_mass_ratio, t_frontback_mass_ratio,
-        f_cx_offset, f_cy_offset, f_cy_ratio, t_compactness
+        f_cx_offset, f_cy_offset, f_cy_ratio
 
     추가되는 컬럼 (ENGINEERED_COLS):
         FS_top, kern_top,
@@ -67,16 +53,17 @@ def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
     # 기초폭 — top-view 기준
     B_top = np.sqrt(d['t_footprint_area'].clip(lower=1e-6))
 
-    # ── FS / kern (이기호 방법 A: B, e 모두 top-view) ────────────
+    # ── FS / kern  (이기호 방법 A: B, e 모두 top-view) ──────────────
     d['FS_top']   = (B_top / 2) / (d['t_cx_offset'].abs() + 1e-6)
     d['kern_top'] = d['t_cx_offset'].abs() / (B_top / 6 + 1e-6)
 
-    # ── 2축 편심 ────────────────────────────────────────────────
+    # ── 2축 편심 ────────────────────────────────────────────────────
     d['t_ecc_2d'] = np.sqrt(
         d['t_cx_offset'] ** 2 + d['t_cy_offset'] ** 2
     )
 
-    # ── 2축 질량 비대칭 ─────────────────────────────────────────
+    # ── 2축 질량 비대칭 ─────────────────────────────────────────────
+    # t_frontback_mass_ratio 없으면 t_cy_offset abs로 근사 (찬호 fallback 동일)
     if 't_frontback_mass_ratio' in d.columns:
         frontback = d['t_frontback_mass_ratio']
     else:
@@ -85,13 +72,13 @@ def add_physics_features(data: pd.DataFrame) -> pd.DataFrame:
         d['t_left_mass_ratio'] ** 2 + frontback ** 2
     )
 
-    # ── 지지 여유 파생 ───────────────────────────────────────────
-    d['support_margin_min']  = (B_top / 2) - d['t_ecc_2d']
+    # ── 지지 여유 파생 ───────────────────────────────────────────────
+    d['support_margin_min'] = (B_top / 2) - d['t_ecc_2d']
     d['height_support_risk'] = (
         d['f_cy_ratio'] / (d['support_margin_min'].abs() + 1e-6)
     )
 
-    # ── 형상 복합 ────────────────────────────────────────────────
+    # ── 형상 복합 ────────────────────────────────────────────────────
     ecc_front_2d = np.sqrt(d['f_cx_offset'] ** 2 + d['f_cy_offset'] ** 2)
     d['compact_ecc']      = d['t_compactness'] / (ecc_front_2d + 1e-6)
     d['t_compactness_sq'] = d['t_compactness'] ** 2
@@ -103,7 +90,7 @@ def main(args=None):
     # ----------------------------------------------------------------
     # 1. combined_features_v2.csv 로드
     # ----------------------------------------------------------------
-    v2_path = _FEAT_DIR / 'combined_features_v2.csv'
+    v2_path = PROJECT_ROOT / 'features' / 'combined_features_v2.csv'
     if not v2_path.exists():
         raise FileNotFoundError(
             f"combined_features_v2.csv 없음: {v2_path}\n"
@@ -138,7 +125,7 @@ def main(args=None):
     # ----------------------------------------------------------------
     # 4. 저장
     # ----------------------------------------------------------------
-    output_dir = _FEAT_DIR
+    output_dir = PROJECT_ROOT / 'features'
     output_dir.mkdir(exist_ok=True)
     out_path = output_dir / 'combined_features_v3.csv'
     df.to_csv(out_path, index=False)
