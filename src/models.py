@@ -17,7 +17,7 @@ class MultiViewResNet(nn.Module):
             nn.Linear(num_phys_features, 64),
             nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),        # 0.3 → 0.4
             nn.Linear(64, 32),
             nn.ReLU(),
         )
@@ -26,11 +26,11 @@ class MultiViewResNet(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(512 * 2 + 32, 256),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.4),        # 0.2 → 0.4
             nn.Linear(256, num_classes),
         )
 
-    def forward(self, views, phys_feats=None):
+    def forward(self, views, phys_feats):
         """
         Args:
             views:      [front_tensor, top_tensor]  shape: (B, 3, H, W)
@@ -40,12 +40,7 @@ class MultiViewResNet(nn.Module):
         f2 = self.feature_extractor(views[1]).view(views[1].size(0), -1)  # (B, 512)
         img_feat = torch.cat((f1, f2), dim=1)                              # (B, 1024)
 
-        if phys_feats is not None:
-            p        = self.phys_mlp(phys_feats)                           # (B, 32)
-            combined = torch.cat((img_feat, p), dim=1)                     # (B, 1056)
-        else:
-            # 물리 피처 없을 때 제로 패딩 (호환성 유지)
-            zeros    = torch.zeros(img_feat.size(0), 32, device=img_feat.device)
-            combined = torch.cat((img_feat, zeros), dim=1)
+        p        = self.phys_mlp(phys_feats)                           # (B, 32)
+        combined = torch.cat((img_feat, p), dim=1)                     # (B, 1056)
 
         return self.classifier(combined)

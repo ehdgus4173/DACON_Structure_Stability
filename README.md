@@ -86,7 +86,7 @@ python run_pipeline.py --mode inference
 | `--mode` | `all` | `train` / `inference` / `all` |
 | `--epochs` | `20` | 학습 에폭 수 |
 | `--batch_size` | `32` | 배치 사이즈 |
-| `--lr` | `1e-3` | 학습률 |
+| `--lr` | `3e-4` | 학습률 |
 | `--skip_extract` | `False` | 피처 CSV 존재 시 추출 단계 스킵 |
 | `--output` | `submission.csv` | 추론 결과 파일명 |
 
@@ -122,7 +122,7 @@ Step 5. inference.py
 ## 🏗 모델 아키텍처
 
 ```
-입력: front.png + top.png + 물리 피처 10종 (PHYS_COLS_V2)
+입력: front.png + top.png + 물리 피처 20종 (PHYS_COLS_V2)
                         ↓
 MultiViewResNet
 ├── ResNet18 Backbone (ImageNet pretrained, shared weights)
@@ -132,18 +132,19 @@ MultiViewResNet
 │                  img_feat (Batch, 1024)
 │
 ├── Phys MLP
-│   10dim → Linear(64) → BN → ReLU → Dropout(0.3) → Linear(32)
+│   20dim → Linear(64) → BN → ReLU → Dropout(0.4) → Linear(32)
 │                        ↓ concat
 │                  combined (Batch, 1056)
 │
 └── Classifier
-    Linear(256) → ReLU → Dropout(0.2) → Linear(1)
+    Linear(256) → ReLU → Dropout(0.4) → Linear(1)
     손실함수: BCEWithLogitsLoss
 ```
 
-**물리 피처 10종 (PHYS_COLS_V2):**
-`t_compactness`, `f_cx_offset`, `t_left_mass_ratio`, `t_cx_offset`, `f_mass_upper_ratio`,
-`FS_overturning`, `kern_ratio`, `effective_eccentricity`, `eccentric_combined`, `p_delta_eccentricity`
+**물리 피처 20종 (PHYS_COLS_V2):**
+`f_cx_offset`, `f_cy_ratio`, `f_mass_upper_ratio`, `t_compactness`, `t_cx_offset`, `t_left_mass_ratio`, `t_frontback_mass_ratio`, `t_pa_cx_offset`, `t_pa_cy_offset`,
+`FS_overturning`, `kern_ratio`, `effective_eccentricity`, `eccentric_combined`, `p_delta_eccentricity`,
+`front_grid_detected`, `front_grid_tilt_angle`, `front_grid_perspective_ratio`, `top_grid_detected`, `top_grid_tilt_angle`, `top_grid_perspective_ratio`
 
 ---
 

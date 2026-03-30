@@ -21,8 +21,8 @@ def validate_features(feature_csv_path: Path):
     if len(test_df) > 0:
         if (test_df['f_cx_offset'] == 0).all():
             issues.append("f_cx_offset이 전부 0 → 물리 피처 미추출 상태")
-        if (test_df['FS_overturning'] > 100).mean() > 0.5:
-            issues.append("FS_overturning 이상값 다수 → 입력 피처 오류")
+        if (test_df['FS_overturning'] == 0).mean() > 0.5:
+            issues.append("FS_overturning이 전부 0 → 피처 계산 실패")
 
     if issues:
         for msg in issues:
@@ -37,7 +37,7 @@ def main():
     parser.add_argument('--mode',         type=str,   choices=['train', 'inference', 'all'], default='all')
     parser.add_argument('--epochs',       type=int,   default=20)
     parser.add_argument('--batch_size',   type=int,   default=32)
-    parser.add_argument('--lr',           type=float, default=1e-3)
+    parser.add_argument('--lr',           type=float, default=3e-4)  # 1e-3 → 3e-4
     parser.add_argument('--skip_extract', action='store_true', help="피처 CSV 존재 시 추출 스킵")
     parser.add_argument('--output',       type=str,   default='submission.csv')
     args = parser.parse_args()
